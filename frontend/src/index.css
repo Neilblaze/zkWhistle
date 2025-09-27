@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Outfit', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: #FFFFFF;
+  background-color: #0A0A0A;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -17,11 +17,12 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: #0000FE;
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: #0000FE;
+  opacity: 0.8;
 }
 
 body {
@@ -44,27 +45,32 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: #0000FE;
+  color: #FFFFFF;
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: all 0.25s;
 }
 button:hover {
-  border-color: #646cff;
+  background-color: #0000FE;
+  opacity: 0.8;
 }
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 2px solid #0000FE;
+  outline-offset: 2px;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    color: #FFFFFF;
+    background-color: #0A0A0A;
   }
   a:hover {
-    color: #747bff;
+    color: #0000FE;
+    opacity: 0.8;
   }
   button {
-    background-color: #f9f9f9;
+    background-color: #0000FE;
+    color: #FFFFFF;
   }
 }
