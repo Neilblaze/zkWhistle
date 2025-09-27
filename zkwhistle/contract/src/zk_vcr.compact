@@ -1,0 +1,134 @@
+// Set the language version to match your compiler.
+pragma language_version 0.17.0;
+
+import CompactStandardLibrary;
+
+// --- Type Definitions ---
+struct ModelParameters {
+    riskThreshold: Uint<64>,
+}
+struct LabResults {
+    cholesterol: Uint<64>,
+    bloodPressure: Uint<64>,
+    isSmoker: Boolean,
+}
+struct VerifiableCredential {
+    results: LabResults,
+    signature: Bytes<32>,
+}
+
+struct VcSignaturePayload {
+    results: LabResults,
+    issuerKey: Bytes<32>,
+}
+
+// --- ZKWhistle Smart Contract ---
+
+// --- Ledger State ---
+export ledger owner: Bytes<32>;
+export ledger trustedIssuers: Map<Bytes<32>, Boolean>;
+export ledger usedNonces: Map<Field, Boolean>;
+export ledger modelParameters: ModelParameters;
+export ledger nonceCounter: Counter;
+
+// --- Witnesses ---
+witness ownerSecretKey(): Bytes<32>;
+witness userCredential(): VerifiableCredential;
+
+// --- Helper Circuits ---
+circuit derivePublicKey(sk: Bytes<32>): Bytes<32> {
+    return persistentHash<Vector<2, Bytes<32>>>(
+        [pad(32, "zkwhistle:owner-pk"), sk]
+    );
+}
+
+// --- Constructor ---
+constructor(ownerSk: Bytes<32>, initialThreshold: Uint<64>) {
+    owner = disclose(derivePublicKey(ownerSk));
+    modelParameters = ModelParameters {
+        riskThreshold: disclose(initialThreshold),
+    };
+}
+
+// This pure circuit takes the user's verified lab results and the public
+// model parameters, and returns `true` if they are "Low Risk".
+circuit calculateRisk(results: LabResults, params: ModelParameters): Boolean {
+    // AI Model Logic (V1):
+    // 1. The user's cholesterol must be below the public threshold.
+    // 2. The user must not be a smoker.
+    const isCholesterolLow = results.cholesterol < params.riskThreshold;
+    const isNonSmoker = results.isSmoker == false;
+
+    // The user is "Low Risk" only if both conditions are true.
+    return isCholesterolLow && isNonSmoker;
+}
+
+// This circuit proves that the VC was "signed" by the issuer.
+circuit checkSignature(
+    results: LabResults,
+    signature: Bytes<32>,
+    issuerKey: Bytes<32>
+): Boolean {
+    // 1. Create an instance of the struct that represents the signed data.
+    const dataToSign = VcSignaturePayload {
+        results: results,
+        issuerKey: issuerKey,
+    };
+
+    // 2. Hash the entire struct. This gives us our expected signature directly.
+    const expectedSignature = persistentHash<VcSignaturePayload>(dataToSign);
+
+    // 3. The check: Does the signature in the VC match our calculation?
+    //    Both are now Bytes<32>, so this is a valid comparison.
+    return signature == expectedSignature;
+}
+
+// --- Challenge-Response ---
+export circuit getChallenge(): Field {
+    const challenge = nonceCounter.read() as Field;
+    nonceCounter.increment(1);
+    return challenge;
+}
+
+// --- Administrative Circuits ---
+export circuit addIssuer(issuerKey: Bytes<32>): [] {
+    const sk = ownerSecretKey();
+    const pk = derivePublicKey(sk);
+    assert(owner == pk, "Caller is not the owner");
+    trustedIssuers.insert(disclose(issuerKey), true);
+}
+
+export circuit revokeIssuer(issuerKey: Bytes<32>): [] {
+    const sk = ownerSecretKey();
+    const pk = derivePublicKey(sk);
+    assert(owner == pk, "Caller is not the owner");
+    trustedIssuers.insert(disclose(issuerKey), false);
+}
+
+// --- The Main ZK Circuit ---
+export circuit submitHealthProof(issuerKey: Bytes<32>, challenge: Field): [] {
+    const disclosedIssuerKey = disclose(issuerKey);
+    const disclosedChallenge = disclose(challenge);
+
+    // --- On-Chain Governance and Security Checks ---
+    assert(trustedIssuers.member(disclosedIssuerKey), "Issuer key not found in registry");
+    assert(trustedIssuers.lookup(disclosedIssuerKey) == true, "Issuer is not trusted");
+    assert(usedNonces.member(disclosedChallenge) == false, "Challenge nonce has already been used");
+
+    // --- ZK Logic ---
+
+    // 1. Get the private VC from the user's machine via the witness.
+    const vc = userCredential();
+
+    // 2. Verify the VC's signature using our helper circuit.
+    const isSignatureValid = checkSignature(vc.results, vc.signature, disclosedIssuerKey);
+    assert(isSignatureValid, "VC signature is invalid");
+
+    // 3. Run the AI model on the (now verified) data.
+    const isLowRisk = calculateRisk(vc.results, modelParameters);
+    assert(isLowRisk, "Health risk score does not meet criteria");
+
+    // --- State Update ---
+    // If all assertions pass, the proof is valid. Update the nonce map.
+    usedNonces.insert(disclosedChallenge, true);
+}
