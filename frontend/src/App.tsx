@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import { Navbar } from './components/Navbar'
 import { WalletSetup } from './components/WalletSetup'
@@ -16,6 +16,14 @@ function App() {
   const [currentStep, setCurrentStep] = useState<AppStep>('wallet');
   const { wallet } = useWallet();
   const { contract } = useContract();
+
+  // Initialize the app with welcome message
+  useEffect(() => {
+    console.log('🚀 zkWhistle Health Credential Verification System');
+    console.log('Welcome to the zero-knowledge health proof verification system.');
+    console.log('This system allows you to verify health credentials while maintaining privacy.');
+    console.log('Choose your role: User (to verify credentials) or Admin (to manage contracts).');
+  }, []);
 
   const handleWalletReady = () => {
     setCurrentStep('contract');
