@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 interface Step {
   id: number;
   title: string;
@@ -84,86 +82,6 @@ export const Stepper = ({ steps, currentStep, onStepClick }: StepperProps) => {
             )}
           </div>
         ))}
-      </div>
-    </div>
-  );
-};
-
-// Example usage component
-export const StepperExample = () => {
-  const [currentStep, setCurrentStep] = useState(1);
-
-  const steps: Step[] = [
-    {
-      id: 1,
-      title: "Prepare Report",
-      description: "Gather information and evidence",
-    },
-    {
-      id: 2,
-      title: "Submit Anonymously",
-      description: "Upload your report securely",
-    },
-    {
-      id: 3,
-      title: "Zero-Knowledge Proof",
-      description: "Cryptographic verification",
-    },
-    {
-      id: 4,
-      title: "Review Process",
-      description: "Report under investigation",
-    },
-    {
-      id: 5,
-      title: "Resolution",
-      description: "Case closed with updates",
-    },
-  ];
-
-  const handleNext = () => {
-    if (currentStep < steps.length) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleStepClick = (stepId: number) => {
-    setCurrentStep(stepId);
-  };
-
-  return (
-    <div className="bg-midnight-black p-8 rounded-lg">
-      <h2 className="text-2xl font-bold text-pure-white font-outfit mb-8 text-center">
-        Whistleblowing Process
-      </h2>
-
-      <Stepper
-        steps={steps}
-        currentStep={currentStep}
-        onStepClick={handleStepClick}
-      />
-
-      <div className="flex justify-between mt-8">
-        <button
-          onClick={handlePrev}
-          disabled={currentStep === 1}
-          className="px-6 py-2 bg-pure-white/10 text-pure-white rounded-lg font-outfit disabled:opacity-50 disabled:cursor-not-allowed hover:bg-pure-white/20 transition-all duration-200"
-        >
-          Previous
-        </button>
-        <button
-          onClick={handleNext}
-          disabled={currentStep === steps.length}
-          className="px-6 py-2 bg-brand-blue text-pure-white rounded-lg font-outfit disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-blue/80 transition-all duration-200"
-        >
-          Next
-        </button>
       </div>
     </div>
   );
