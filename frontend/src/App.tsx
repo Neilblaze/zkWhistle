@@ -1,94 +1,164 @@
 import { useState } from 'react'
 import './App.css'
 import { Navbar } from './components/Navbar'
-import { Stepper } from './components/Stepper'
+import { WalletSetup } from './components/WalletSetup'
+import { ContractManager } from './components/ContractManager'
+import { HealthProofSubmission } from './components/HealthProofSubmission'
+import { AdminPanel } from './components/AdminPanel'
+import { useWallet } from './hooks/useWallet'
+import { useContract } from './hooks/useContract'
+
+type AppMode = 'user' | 'admin';
+type AppStep = 'wallet' | 'contract' | 'action';
 
 function App() {
-  const [currentStep, setCurrentStep] = useState(1);
+  const [appMode, setAppMode] = useState<AppMode>('user');
+  const [currentStep, setCurrentStep] = useState<AppStep>('wallet');
+  const { wallet } = useWallet();
+  const { contract } = useContract();
 
-  const steps = [
-    {
-      id: 1,
-      title: "Prepare Report",
-      description: "Gather information and evidence",
-    },
-    {
-      id: 2,
-      title: "Submit Anonymously",
-      description: "Upload your report securely",
-    },
-    {
-      id: 3,
-      title: "Zero-Knowledge Proof",
-      description: "Cryptographic verification",
-    },
-    {
-      id: 4,
-      title: "Review Process",
-      description: "Report under investigation",
-    },
-    {
-      id: 5,
-      title: "Resolution",
-      description: "Case closed with updates",
-    },
-  ];
+  const handleWalletReady = () => {
+    setCurrentStep('contract');
+  };
 
-  const handleNext = () => {
-    if (currentStep < steps.length) {
-      setCurrentStep(currentStep + 1);
+  const handleContractReady = () => {
+    setCurrentStep('action');
+  };
+
+  const handleModeSwitch = (mode: AppMode) => {
+    setAppMode(mode);
+    // Reset to wallet step when switching modes
+    setCurrentStep('wallet');
+  };
+
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 'wallet':
+        return <WalletSetup onWalletReady={handleWalletReady} />;
+      case 'contract':
+        return <ContractManager onContractReady={handleContractReady} />;
+      case 'action':
+        if (appMode === 'admin') {
+          return contract ? <AdminPanel contractAddress={contract.contractAddress} /> : null;
+        } else {
+          return contract ? <HealthProofSubmission contractAddress={contract.contractAddress} /> : null;
+        }
+      default:
+        return null;
     }
   };
 
-  const handlePrev = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+  const getStepTitle = () => {
+    switch (currentStep) {
+      case 'wallet':
+        return 'Wallet Setup';
+      case 'contract':
+        return 'Contract Setup';
+      case 'action':
+        return appMode === 'admin' ? 'Admin Panel' : 'Health Proof Verification';
+      default:
+        return '';
     }
-  };
-
-  const handleStepClick = (stepId: number) => {
-    setCurrentStep(stepId);
-  };
-
-  const handleSubmitReport = () => {
-    console.log('Submit report clicked');
   };
 
   return (
     <div className="min-h-screen bg-midnight-black text-pure-white font-outfit">
       <Navbar
-        title="zkWhistle"
-        buttonText="Submit Report"
-        onButtonClick={handleSubmitReport}
+        title="zkWhistle - Health Credential Verification"
+        buttonText={appMode === 'user' ? 'Switch to Admin' : 'Switch to User'}
+        onButtonClick={() => handleModeSwitch(appMode === 'user' ? 'admin' : 'user')}
       />
 
-      <div className="p-8">
-        <h2 className="text-2xl font-bold text-pure-white font-outfit mb-8 text-center">
-          Whistleblowing Process
-        </h2>
-
-        <Stepper
-          steps={steps}
-          currentStep={currentStep}
-          onStepClick={handleStepClick}
-        />
-
-        <div className="flex justify-between mt-8 max-w-4xl mx-auto">
-          <button
-            onClick={handlePrev}
-            disabled={currentStep === 1}
-            className="px-6 py-2 bg-pure-white/10 text-pure-white rounded-lg font-outfit disabled:opacity-50 disabled:cursor-not-allowed hover:bg-pure-white/20 transition-all duration-200"
-          >
-            Previous
-          </button>
-          <button
-            onClick={handleNext}
-            disabled={currentStep === steps.length}
-            className="px-6 py-2 bg-brand-blue text-pure-white rounded-lg font-outfit disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-blue/80 transition-all duration-200"
-          >
-            Next
-          </button>
+      <div className="p-8 max-w-4xl mx-auto">
+        {/* Mode Indicator */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center space-x-4 bg-pure-white/10 rounded-lg p-4">
+            <div className={`px-4 py-2 rounded-lg font-semibold ${
+              appMode === 'user' 
+                ? 'bg-brand-blue text-pure-white' 
+                : 'bg-transparent text-pure-white/60'
+            }`}>
+              User Mode
+            </div>
+            <div className="text-pure-white/40">|</div>
+            <div className={`px-4 py-2 rounded-lg font-semibold ${
+              appMode === 'admin' 
+                ? 'bg-brand-blue text-pure-white' 
+                : 'bg-transparent text-pure-white/60'
+            }`}>
+              Admin Mode
+            </div>
+          </div>
         </div>
+
+        {/* Progress Indicator */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-pure-white font-outfit mb-4 text-center">
+            {getStepTitle()}
+          </h2>
+          
+          <div className="flex items-center justify-center space-x-4">
+            <div className={`flex items-center space-x-2 ${
+              currentStep === 'wallet' ? 'text-brand-blue' : wallet ? 'text-green-400' : 'text-pure-white/40'
+            }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                currentStep === 'wallet' ? 'bg-brand-blue' : wallet ? 'bg-green-400' : 'bg-pure-white/20'
+              } ${currentStep === 'wallet' || wallet ? 'text-pure-white' : 'text-pure-white/60'}`}>
+                1
+              </div>
+              <span className="font-semibold">Wallet</span>
+            </div>
+            
+            <div className="w-8 h-0.5 bg-pure-white/20"></div>
+            
+            <div className={`flex items-center space-x-2 ${
+              currentStep === 'contract' ? 'text-brand-blue' : contract ? 'text-green-400' : 'text-pure-white/40'
+            }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                currentStep === 'contract' ? 'bg-brand-blue' : contract ? 'bg-green-400' : 'bg-pure-white/20'
+              } ${currentStep === 'contract' || contract ? 'text-pure-white' : 'text-pure-white/60'}`}>
+                2
+              </div>
+              <span className="font-semibold">Contract</span>
+            </div>
+            
+            <div className="w-8 h-0.5 bg-pure-white/20"></div>
+            
+            <div className={`flex items-center space-x-2 ${
+              currentStep === 'action' ? 'text-brand-blue' : 'text-pure-white/40'
+            }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                currentStep === 'action' ? 'bg-brand-blue text-pure-white' : 'bg-pure-white/20 text-pure-white/60'
+              }`}>
+                3
+              </div>
+              <span className="font-semibold">{appMode === 'admin' ? 'Admin' : 'Verify'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="space-y-6">
+          {renderCurrentStep()}
+        </div>
+
+        {/* Navigation */}
+        {currentStep !== 'wallet' && (
+          <div className="flex justify-center mt-8">
+            <button
+              onClick={() => {
+                if (currentStep === 'contract') {
+                  setCurrentStep('wallet');
+                } else if (currentStep === 'action') {
+                  setCurrentStep('contract');
+                }
+              }}
+              className="px-6 py-2 bg-pure-white/10 text-pure-white rounded-lg font-outfit hover:bg-pure-white/20 transition-all duration-200"
+            >
+              Back
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
