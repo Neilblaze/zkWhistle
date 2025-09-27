@@ -1,5 +1,5 @@
 import { type ContractAddress } from '@midnight-ntwrk/compact-runtime';
-import { Verifier, type VerifierPrivateState, witnesses, type VerifiableCredential } from '@midnight-ntwrk/zkwhistle';
+import { Verifier, type VerifierPrivateState, witnesses, type VerifiableCredential } from '@midnight-ntwrk/zkwhistle-contract';
 import { type CoinInfo, nativeToken, Transaction, type TransactionId } from '@midnight-ntwrk/ledger';
 import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
