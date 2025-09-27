@@ -4,7 +4,7 @@
   "private": true,
   "workspaces": [
     "contract",
-    "cli"
+    "backend"
   ],
   "devDependencies": {
     "@types/pino-pretty": "^5.0.0",
