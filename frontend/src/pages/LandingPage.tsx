@@ -8,10 +8,6 @@ import {
   FileText,
   Zap,
   Globe,
-  Github,
-  Twitter,
-  Mail,
-  ArrowRight,
 } from "lucide-react";
 import { Navbar } from "../components/Navbar";
 
@@ -410,51 +406,6 @@ function FeaturesSection() {
 }
 
 function Footer() {
-  const footerSections = [
-    {
-      title: "Product",
-      links: [
-        { name: "How it Works", href: "#" },
-        { name: "Features", href: "#" },
-        { name: "Security", href: "#" },
-        { name: "Pricing", href: "#" },
-      ],
-    },
-    {
-      title: "Resources",
-      links: [
-        { name: "Documentation", href: "#" },
-        { name: "API Reference", href: "#" },
-        { name: "Guides", href: "#" },
-        { name: "Support", href: "#" },
-      ],
-    },
-    {
-      title: "Company",
-      links: [
-        { name: "About", href: "#" },
-        { name: "Blog", href: "#" },
-        { name: "Careers", href: "#" },
-        { name: "Contact", href: "#" },
-      ],
-    },
-    {
-      title: "Legal",
-      links: [
-        { name: "Privacy Policy", href: "#" },
-        { name: "Terms of Service", href: "#" },
-        { name: "Cookie Policy", href: "#" },
-        { name: "GDPR", href: "#" },
-      ],
-    },
-  ];
-
-  const socialLinks = [
-    { icon: Github, href: "#", label: "GitHub" },
-    { icon: Twitter, href: "#", label: "Twitter" },
-    { icon: Mail, href: "#", label: "Email" },
-  ];
-
   return (
     <footer
       id="footer"
@@ -463,107 +414,16 @@ function Footer() {
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-t from-indigo-500/[0.02] via-transparent to-rose-500/[0.02]" />
 
-      <div className="relative max-w-7xl mx-auto px-4 py-16">
-        {/* Main footer content */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-12 mb-12">
-          {/* Brand section */}
-          <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              viewport={{ once: true }}
-            >
-              <div className="flex items-center mb-6">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-rose-500 flex items-center justify-center mr-4">
-                  <Shield className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-white">Midnight</span>
-              </div>
-
-              <p className="text-white/60 mb-6 leading-relaxed max-w-md">
-                Secure, anonymous whistleblowing platform powered by
-                zero-knowledge cryptography. Protect truth-tellers while
-                ensuring verifiable reports.
-              </p>
-
-              {/* Newsletter signup */}
-              <div className="space-y-4">
-                <h4 className="text-white font-medium">Stay Updated</h4>
-                <div className="flex gap-3">
-                  <input
-                    type="email"
-                    placeholder="Enter your email"
-                    className="flex-1 px-4 py-2 bg-white/[0.02] border border-white/[0.08] rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/[0.2] transition-colors"
-                  />
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-100 transition-colors font-medium"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Footer links */}
-          {footerSections.map((section, index) => (
-            <motion.div
-              key={section.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              viewport={{ once: true }}
-            >
-              <h4 className="text-white font-semibold mb-4">{section.title}</h4>
-              <ul className="space-y-3">
-                {section.links.map((link) => (
-                  <li key={link.name}>
-                    <a
-                      href={link.href}
-                      className="text-white/60 hover:text-white transition-colors text-sm"
-                    >
-                      {link.name}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Bottom section */}
+      <div className="relative max-w-7xl mx-auto px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
+          transition={{ duration: 0.6 }}
           viewport={{ once: true }}
-          className="pt-8 border-t border-white/[0.08] flex flex-col md:flex-row justify-between items-center gap-6"
+          className="text-center"
         >
-          {/* Copyright */}
-          <div className="text-white/40 text-sm">
-            © 2024 Midnight. All rights reserved.
-          </div>
-
-          {/* Social links */}
-          <div className="flex items-center gap-4">
-            {socialLinks.map((social, index) => (
-              <motion.a
-                key={social.label}
-                href={social.href}
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                whileHover={{ scale: 1.1 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                className="w-10 h-10 rounded-lg bg-white/[0.02] border border-white/[0.08] flex items-center justify-center text-white/60 hover:text-white hover:border-white/[0.2] transition-all duration-300"
-                aria-label={social.label}
-              >
-                <social.icon className="w-4 h-4" />
-              </motion.a>
-            ))}
+          <div className="text-white/60 text-sm">
+            Made for Midnight Hackathon hosted by MLH
           </div>
         </motion.div>
       </div>

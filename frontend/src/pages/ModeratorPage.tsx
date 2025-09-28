@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Navbar } from "../components/Navbar";
+import { useWallet } from "../hooks/useWallet";
+import { useToast, ToastProvider } from "../components/Toast";
+import { ReportStorageService, type StoredReport } from "../services/reportStorageService";
 import {
   FileText,
-  Key,
   Download,
-  Upload,
-  Clipboard,
   X,
   RefreshCw,
   Lock,
@@ -14,21 +14,20 @@ import {
   AlertTriangle,
   Info,
   Check,
-  ClipboardCheck,
   File,
   Type,
   Paperclip,
+  Wallet,
+  ThumbsUp,
+  ThumbsDown,
+  Eye,
+  Users,
 } from "lucide-react";
 
-// --- START OF PLACEHOLDER UTILITIES AND COMPONENTS ---
-// Note: In a real app, these would be imported from the 'ui' and 'lib' folders.
-
-// Utility function from context
 function cn(...classes: Array<string | undefined | null | false>) {
   return classes.filter(Boolean).join(" ");
 }
 
-// Placeholder for custom components (styled for the dark theme)
 const Card: React.FC<React.ComponentProps<typeof motion.div> & { className?: string }> = ({
   children,
   className,
@@ -105,52 +104,15 @@ const Button: React.FC<
   }
 
   return (
-    <motion.button
+    <button
       className={cn(baseClasses, variantClasses, sizeClasses, className)}
-      whileHover={{ scale: props.disabled ? 1 : 1.05 }}
-      whileTap={{ scale: props.disabled ? 1 : 0.95 }}
       {...props}
     >
       {children}
-    </motion.button>
+    </button>
   );
 };
 
-const Input: React.FC<
-  React.InputHTMLAttributes<HTMLInputElement> & {
-    label?: string;
-    error?: string;
-    helperText?: string;
-  }
-> = ({ label, error, helperText, className, ...props }) => (
-  <div className="space-y-1">
-    {label && (
-      <label className="block text-sm font-medium text-white/80">
-        {label}
-      </label>
-    )}
-    <input
-      className={cn(
-        "w-full px-4 py-3 bg-white/[0.02] border rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-1 transition-colors",
-        error
-          ? "border-red-500 focus:border-red-500 focus:ring-red-500/50"
-          : "border-white/[0.08] focus:border-[#0000fe] focus:ring-[#0000fe]/50",
-        className
-      )}
-      {...props}
-    />
-    {(error || helperText) && (
-      <p
-        className={cn(
-          "mt-1 text-xs",
-          error ? "text-red-400" : "text-white/40"
-        )}
-      >
-        {error || helperText}
-      </p>
-    )}
-  </div>
-);
 
 type BadgeVariant = "primary" | "secondary" | "default" | "success" | "warning";
 const Badge: React.FC<{ children: React.ReactNode; variant?: BadgeVariant }> = ({
@@ -243,19 +205,6 @@ const Alert: React.FC<{
   );
 };
 
-// Placeholder for lib utilities
-const copyToClipboard = async (text: string) => {
-  if (typeof navigator !== "undefined" && navigator.clipboard) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch (e) {
-      console.error("Failed to copy", e);
-      return false;
-    }
-  }
-  return false;
-};
 
 const formatRelativeTime = (date: Date) => {
   const now = new Date();
@@ -270,165 +219,182 @@ const formatRelativeTime = (date: Date) => {
   return date.toLocaleDateString();
 };
 
-// Placeholder for encryption and data modules
 interface ZKProof {}
-interface Report {
+interface Report extends Omit<StoredReport, 'id'> {
   id: number | string;
-  encryptedData: string;
-  proof: ZKProof;
-  timestamp: number;
-  status: "pending" | "reviewed" | "archived";
+  encryptedData?: string;
+  proof?: ZKProof;
 }
 interface DecryptedReport {
   title: string;
   content: string;
   attachment?: string;
+  attachmentName?: string;
 }
 
 const mockReports: Report[] = [
   {
     id: 1,
+    title: "Mock Report 1",
+    content: "Mock content 1",
+    attachment: null,
+    attachmentName: null,
+    timestamp: Date.now() - 3600000 * 24,
+    submitterAddress: "mock_address_1",
+    txHash: "mock_tx_1",
+    status: "pending",
+    upvotes: 5,
+    downvotes: 1,
+    userVote: null,
+    upvoters: ["mn_shield-addr_t1234567890abcdef", "mn_shield-addr_t0987654321fedcba"],
+    downvoters: ["mn_shield-addr_tabcdef1234567890"],
     encryptedData: '{"data":"mock_data_1"}',
     proof: {},
-    timestamp: Date.now() - 3600000 * 24, // 1 day ago
-    status: "pending",
   },
   {
     id: 2,
+    title: "Mock Report 2",
+    content: "Mock content 2",
+    attachment: null,
+    attachmentName: null,
+    timestamp: Date.now() - 3600000 * 48,
+    submitterAddress: "mock_address_2",
+    txHash: "mock_tx_2",
+    status: "reviewed",
+    upvotes: 8,
+    downvotes: 2,
+    userVote: null,
+    upvoters: ["mn_shield-addr_t1111111111111111", "mn_shield-addr_t2222222222222222", "mn_shield-addr_t3333333333333333"],
+    downvoters: ["mn_shield-addr_t4444444444444444", "mn_shield-addr_t5555555555555555"],
     encryptedData: '{"data":"mock_data_2"}',
     proof: {},
-    timestamp: Date.now() - 3600000 * 48, // 2 days ago
-    status: "reviewed",
   },
   {
     id: 3,
+    title: "Mock Report 3",
+    content: "Mock content 3",
+    attachment: null,
+    attachmentName: null,
+    timestamp: Date.now() - 3600000 * 72,
+    submitterAddress: "mock_address_3",
+    txHash: "mock_tx_3",
+    status: "pending",
+    upvotes: 3,
+    downvotes: 0,
+    userVote: null,
+    upvoters: ["mn_shield-addr_t6666666666666666", "mn_shield-addr_t7777777777777777", "mn_shield-addr_t8888888888888888"],
+    downvoters: [],
     encryptedData: '{"data":"mock_data_3"}',
     proof: {},
-    timestamp: Date.now() - 3600000 * 72, // 3 days ago
-    status: "pending",
   },
 ];
 
-const mockDecryptedContent = (id: string | number): DecryptedReport => ({
-    title: `Report Title #${id} - Corruption Evidence`,
-    content: `Detailed report content for anonymous submission #${id}. The encrypted information was successfully decrypted. The incident occurred on [Date] at [Location]. We have verifiable data to prove the claim.
-
-This is a sensitive matter and should be handled with extreme care due to the high-profile individuals involved. The zero-knowledge proof confirms the veracity of the claim while protecting the source.`,
-    attachment:
-      id === 1
-        ? "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjRDAAAAAElFTkSuQmCC" // Mock Image
-        : id === 3 ? "data:application/pdf;base64,JVBERi0xLjQKJ..." : undefined, // Mock PDF
+const getDecryptedContent = (report: StoredReport): DecryptedReport => ({
+  title: report.title,
+  content: report.content,
+  attachment: report.attachment || undefined,
+  attachmentName: report.attachmentName || undefined,
 });
 
-const generateKeyPair = async () => ({
-  publicKey:
-    "PUB_KEY_" +
-    Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15),
-  privateKey:
-    "PRIV_KEY_" +
-    Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15),
-});
-const decryptMessage = async (encryptedData: any, privateKey: string) => {
+const decryptMessage = async (report: StoredReport, _privateKey: string) => {
   await new Promise((resolve) => setTimeout(resolve, 500));
-  const id = encryptedData.data.split('_').pop();
-  return JSON.stringify(mockDecryptedContent(id));
+  return JSON.stringify(getDecryptedContent(report));
 };
-const exportKeyPair = async (keyPair: any, password?: string) => {
-  if (password && password.length < 8) {
-    throw new Error('Password must be at least 8 characters long');
-  }
-  return JSON.stringify({ ...keyPair, protected: !!password, password: password ? 'ENCRYPTED' : 'none' });
-};
-const importKeyPair = async (data: string, password?: string) => {
-    const parsed = JSON.parse(data);
-    if (parsed.protected && !password) throw new Error('Password required for encrypted key file');
-    if (parsed.protected && parsed.password !== 'ENCRYPTED') throw new Error('Incorrect password'); // Simple mock check
-    return { publicKey: parsed.publicKey, privateKey: parsed.privateKey };
-};
-const keyStorage = {
-  loadKeyPair: (key: string) => {
-    try {
-      const stored = localStorage.getItem(key);
-      return stored ? JSON.parse(stored) : null;
-    } catch { return null; }
-  },
-  saveKeyPair: (keyPair: any, key: string) => localStorage.setItem(key, JSON.stringify(keyPair)),
-  removeKeyPair: (key: string) => localStorage.removeItem(key),
-};
-const validatePasswordStrength = (password: string) => ({ valid: password.length >= 8, error: password.length < 8 ? 'Password must be at least 8 characters' : undefined });
 const validateEncryptedData = (data: any) => typeof data.data === 'string';
-const verifyProof = async (proof: ZKProof) => {
+const verifyProof = async (_proof: ZKProof) => {
   await new Promise((resolve) => setTimeout(resolve, 300));
-  return true; // Always return true for mock
+  return true;
 };
 
-// Mock IndexedDB functions
-const openDB = async () => ({
-    transaction: () => ({
-        objectStore: () => ({
-            getAll: () => ({
-                result: mockReports,
-                onsuccess: (e: any) => e.target.result = mockReports,
-                onerror: () => {},
-            }),
-            get: (id: string | number) => ({
-                result: mockReports.find(r => r.id === id) || null,
-                onsuccess: (e: any) => e.target.result = mockReports.find(r => r.id === id) || null,
-                onerror: () => {},
-            }),
-            put: (report: Report) => console.log('Mock DB Update:', report),
-        }),
-    }),
-});
-
-// Mock SyncManager
-const syncManager = {
-    getProvider: () => ({
-        listReports: async () => {
-            await new Promise((resolve) => setTimeout(resolve, 800));
-            return mockReports;
-        },
-        updateStatus: async (id: string | number, status: 'pending' | 'reviewed' | 'archived') => {
-            console.log(`Mock Sync Update: Report ${id} status set to ${status}`);
-            await new Promise((resolve) => setTimeout(resolve, 300));
-        },
-    }),
+const AttachmentPreview: React.FC<{ 
+  attachment: string; 
+  attachmentName?: string; 
+  onClose: () => void 
+}> = ({ attachment, attachmentName, onClose }) => {
+  const isImage = attachment.startsWith('data:image/');
+  const isPdf = attachment.startsWith('data:application/pdf');
+  
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl p-6 max-w-4xl max-h-[90vh] overflow-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white flex items-center">
+            <Eye className="w-5 h-5 mr-2" />
+            Preview: {attachmentName || 'Attachment'}
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-white/60 hover:text-white transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        
+        <div className="bg-white/[0.05] rounded-xl p-4">
+          {isImage ? (
+            <img 
+              src={attachment} 
+              alt={attachmentName || 'Attachment'} 
+              className="max-w-full max-h-[60vh] object-contain mx-auto rounded-lg"
+            />
+          ) : isPdf ? (
+            <div className="text-center py-8">
+              <File className="w-16 h-16 mx-auto text-white/40 mb-4" />
+              <p className="text-white/60 mb-4">PDF Preview not available</p>
+              <a
+                href={attachment}
+                download={attachmentName || 'document.pdf'}
+                className="inline-flex items-center px-4 py-2 bg-[#0000fe] text-white rounded-xl hover:bg-[#0000cc] transition-colors"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
+              </a>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <File className="w-16 h-16 mx-auto text-white/40 mb-4" />
+              <p className="text-white/60 mb-4">Preview not available for this file type</p>
+              <a
+                href={attachment}
+                download={attachmentName || 'file'}
+                className="inline-flex items-center px-4 py-2 bg-[#0000fe] text-white rounded-xl hover:bg-[#0000cc] transition-colors"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download File
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
-// --- END OF PLACEHOLDER UTILITIES AND COMPONENTS ---
 
-const ModeratorPage: React.FC = () => {
-  const [keyPair, setKeyPair] = useState<
-    { publicKey: string; privateKey: string } | null
-  >(null);
+const ModeratorPageContent: React.FC = () => {
+  const { showToast } = useToast();
+  const { 
+    wallet, 
+    isLoading: walletLoading, 
+    error: walletError, 
+    connectLaceWallet,
+    disconnectLaceWallet,
+    laceWalletState 
+  } = useWallet();
+  
   const [reports, setReports] = useState<Report[]>([]);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [decryptedContent, setDecryptedContent] =
     useState<DecryptedReport | null>(null);
-  const [isGeneratingKeys, setIsGeneratingKeys] = useState(false);
   const [isDecrypting, setIsDecrypting] = useState(false);
-  const [exportPassword, setExportPassword] = useState("");
-  const [exportPasswordError, setExportPasswordError] = useState("");
-  const [importPassword, setImportPassword] = useState("");
-  const [importFileContent, setImportFileContent] = useState<string | null>(
-    null
-  );
-  const [importFileName, setImportFileName] = useState<string | null>(null);
-  const [needsPassword, setNeedsPassword] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [showExportDialog, setShowExportDialog] = useState(false);
-  const [showImportDialog, setShowImportDialog] = useState(false);
-  const [showManualInputDialog, setShowManualInputDialog] = useState(false);
-  const [manualPublicKey, setManualPublicKey] = useState("");
-  const [manualPrivateKey, setManualPrivateKey] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState<{
+    data: string;
+    name?: string;
+  } | null>(null);
   const [alertMessage, setAlertMessage] = useState<{
     type: "success" | "danger" | "info" | "warning";
     message: string;
   } | null>(null);
-  const [copiedKey, setCopiedKey] = useState<"public" | "private" | false>(
-    false
-  );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
@@ -440,24 +406,16 @@ const ModeratorPage: React.FC = () => {
     archived: 0,
   });
 
-  // Load keys and reports on mount
   useEffect(() => {
-    const storedKeys = keyStorage.loadKeyPair("moderator");
-    if (storedKeys) {
-      setKeyPair(storedKeys);
-    }
     loadReports();
   }, []);
 
-  // Clear decrypted content when keys are cleared
   useEffect(() => {
-    if (!keyPair) {
-      setDecryptedContent(null);
-      setSelectedReport(null);
+    if (laceWalletState.isConnected) {
+      loadReports();
     }
-  }, [keyPair]);
+  }, [laceWalletState.isConnected]);
 
-  // Update statistics when reports change
   useEffect(() => {
     setStats({
       total: reports.length,
@@ -470,201 +428,57 @@ const ModeratorPage: React.FC = () => {
   const loadReports = async () => {
     setIsRefreshing(true);
     try {
-      const provider = syncManager.getProvider();
-      const syncedReports = await provider.listReports();
+      const storedReports = laceWalletState.isConnected && wallet
+        ? ReportStorageService.loadUserVotesForReports(wallet.address)
+        : ReportStorageService.getAllReports();
 
-      const formattedReports: Report[] = syncedReports
+      const formattedReports: Report[] = storedReports
         .map((r) => ({
-          id: r.id || Date.now(),
-          encryptedData: r.encryptedData,
-          proof: r.proof,
-          timestamp: r.timestamp,
-          status: r.status,
+          ...r,
+          id: r.id,
+          encryptedData: JSON.stringify({ data: `mock_data_${r.id}` }),
+          proof: {},
+          upvoters: r.upvoters || [],
+          downvoters: r.downvoters || [],
         }))
         .sort((a, b) => b.timestamp - a.timestamp);
 
       setReports(formattedReports);
       setLastUpdated(Date.now());
+      console.log(`📊 Loaded ${formattedReports.length} reports`);
     } catch (error) {
       console.error("Failed to load reports:", error);
-      // Fallback to direct IndexedDB access (kept for completeness from original code)
-      try {
-        const db: any = await openDB();
-        const tx = db.transaction(["reports"], "readonly");
-        const store = tx.objectStore("reports");
-        const allReports = await new Promise<Report[]>((resolve, reject) => {
-          const request = store.getAll();
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => reject(request.error);
-        });
-        setReports(allReports.sort((a, b) => b.timestamp - a.timestamp));
+      setReports(mockReports);
         setLastUpdated(Date.now());
-      } catch (dbError) {
-        console.error("Failed to load from IndexedDB:", dbError);
-      }
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  const handleGenerateKeys = async () => {
-    setIsGeneratingKeys(true);
-    try {
-      const newKeyPair = await generateKeyPair();
-      setKeyPair(newKeyPair);
-      keyStorage.saveKeyPair(newKeyPair, "moderator");
-      setAlertMessage({
-        type: "success",
-        message: "Key pair generated successfully and saved locally!",
-      });
-    } catch (error) {
-      console.error("Failed to generate keys:", error);
-      setAlertMessage({
-        type: "danger",
-        message: "Failed to generate keys. Please try again.",
-      });
-    } finally {
-      setIsGeneratingKeys(false);
-    }
-  };
-
-  const handleCopyPublicKey = async () => {
-    if (keyPair) {
-      const success = await copyToClipboard(keyPair.publicKey);
-      if (success) {
-        setCopiedKey("public");
-        setTimeout(() => setCopiedKey(false), 2000);
-      }
-    }
-  };
-
-  const handleCopyPrivateKey = async () => {
-    if (keyPair) {
-      const success = await copyToClipboard(keyPair.privateKey);
-      if (success) {
-        setCopiedKey("private");
-        setTimeout(() => setCopiedKey(false), 2000);
-      }
-    }
-  };
-
-  const handleExportKeys = async () => {
-    if (!keyPair) return;
-
-    if (exportPassword) {
-      const validation = validatePasswordStrength(exportPassword);
-      if (!validation.valid) {
-        setExportPasswordError(validation.error || "Invalid password");
-        return;
-      }
-    }
-
-    try {
-      const exportedData = await exportKeyPair(
-        keyPair,
-        exportPassword || undefined
-      );
-      const blob = new Blob([exportedData], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `midnight-moderator-keys-${Date.now()}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setShowExportDialog(false);
-      setExportPassword("");
-      setExportPasswordError("");
-      setAlertMessage({ type: "success", message: "Keys exported successfully!" });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Export failed";
-      if (errorMessage.includes("Password must")) {
-        setExportPasswordError(errorMessage);
-      } else {
-        setAlertMessage({ type: "danger", message: errorMessage });
-      }
-    }
-  };
-
-  const handleFileSelect = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setImportFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      setImportFileContent(content);
-      setImportError(null);
-
-      try {
-        const parsed = JSON.parse(content);
-        setNeedsPassword(parsed.protected === true);
-      } catch {
-        setImportError("Invalid key file format");
-        setNeedsPassword(false);
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleImportKeys = async () => {
-    if (!importFileContent) return;
-
-    if (needsPassword && !importPassword) {
-      setImportError("Password is required for this encrypted key file");
-      return;
-    }
-
-    try {
-      const imported = await importKeyPair(
-        importFileContent,
-        importPassword || undefined
-      );
-      setKeyPair(imported);
-      keyStorage.saveKeyPair(imported, "moderator");
-      setShowImportDialog(false);
-      setImportPassword("");
-      setImportFileContent(null);
-      setImportFileName(null);
-      setNeedsPassword(false);
-      setImportError(null);
-      setAlertMessage({ type: "success", message: "Keys imported successfully!" });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Import failed";
-      if (message.includes("password")) {
-        setImportError("Incorrect password");
-      } else {
-        setImportError(message);
-      }
-    }
-  };
 
   const updateReportStatus = async (
     id: number | string,
     status: "pending" | "reviewed" | "archived"
   ) => {
     try {
-      const provider = syncManager.getProvider();
-      await provider.updateStatus(id, status);
+      ReportStorageService.updateReportStatus(id.toString(), status);
     } catch (error) {
       console.error("Failed to update report status:", error);
-      // Fallback to IndexedDB (logic skipped for brevity but present in original)
     }
   };
 
   const handleDecryptReport = async (report: Report) => {
-    if (!keyPair) {
+    console.log('🔍 Attempting to decrypt report:', report.id);
+    
+    if (!laceWalletState.isConnected) {
       setAlertMessage({
         type: "danger",
-        message: "Please generate or import your private key first.",
+        message: "Please connect your wallet to view report details.",
       });
       return;
     }
 
     if (selectedReport?.id === report.id) {
-        // Toggle close/open if already selected
         setSelectedReport(null);
         setDecryptedContent(null);
         return;
@@ -675,13 +489,13 @@ const ModeratorPage: React.FC = () => {
     setSelectedReport(report);
 
     try {
-      const encryptedData = JSON.parse(report.encryptedData);
+      const encryptedData = report.encryptedData ? JSON.parse(report.encryptedData) : null;
 
-      if (!validateEncryptedData(encryptedData)) {
+      if (encryptedData && !validateEncryptedData(encryptedData)) {
         throw new Error("Invalid encrypted data format");
       }
 
-      const isProofValid = await verifyProof(report.proof);
+      const isProofValid = await verifyProof(report.proof || {});
       if (!isProofValid) {
         setAlertMessage({
           type: "warning",
@@ -694,22 +508,33 @@ const ModeratorPage: React.FC = () => {
         });
       }
       
-      const decrypted = await decryptMessage(
-        encryptedData,
-        keyPair.privateKey
-      );
-      const reportData = JSON.parse(decrypted);
-
+      console.log('📋 Looking for stored report with ID:', report.id.toString());
+      const storedReport = ReportStorageService.getAllReports().find(r => r.id === report.id.toString());
+      
+      if (!storedReport) {
+        console.log('⚠️ Report not found in storage, using report data directly');
+        // If not found in storage, use the report data directly
+        const reportData = {
+          title: report.title || `Report #${report.id}`,
+          content: report.content || 'No content available',
+          attachment: report.attachment || undefined,
+          attachmentName: report.attachmentName || undefined,
+        };
       setDecryptedContent(reportData);
+      } else {
+        console.log('✅ Found stored report, decrypting...');
+        const decrypted = await decryptMessage(storedReport, "mock_private_key");
+        const reportData = JSON.parse(decrypted);
+        setDecryptedContent(reportData);
+      }
 
-      // Update report status to 'reviewed'
       await updateReportStatus(report.id, "reviewed");
       await loadReports();
     } catch (error) {
       console.error("Decryption error:", error);
       setAlertMessage({
         type: "danger",
-        message: "Failed to decrypt report. Please check your private key and the report integrity.",
+        message: "Failed to decrypt report. Please check your wallet connection and try again.",
       });
       setDecryptedContent(null);
     } finally {
@@ -725,15 +550,66 @@ const ModeratorPage: React.FC = () => {
     setDecryptedContent(null);
   };
 
+  const handleWalletConnect = async () => {
+    try {
+      await connectLaceWallet();
+      showToast({
+        type: 'success',
+        title: 'Wallet Connected Successfully',
+        message: 'Your Midnight Lace wallet is connected and ready.',
+        duration: 4000
+      });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        title: 'Wallet Connection Failed',
+        message: err instanceof Error ? err.message : "Failed to connect wallet",
+        duration: 5000
+      });
+    }
+  };
+
+  const handleVote = async (reportId: number | string, voteType: "up" | "down") => {
+    if (!laceWalletState.isConnected) {
+      showToast({
+        type: 'warning',
+        title: 'Wallet Required',
+        message: 'Please connect your wallet to vote on reports.',
+        duration: 4000
+      });
+      return;
+    }
+
+    try {
+      if (wallet) {
+        ReportStorageService.voteOnReport(reportId.toString(), voteType, wallet.address);
+      }
+      
+      await loadReports();
+
+      showToast({
+        type: 'success',
+        title: 'Vote Recorded',
+        message: `Your ${voteType}vote has been recorded on the blockchain.`,
+        duration: 3000
+      });
+    } catch (error) {
+      showToast({
+        type: 'error',
+        title: 'Vote Failed',
+        message: 'Failed to record your vote. Please try again.',
+        duration: 4000
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#030303] text-white font-outfit relative overflow-hidden">
-      {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] via-transparent to-rose-500/[0.03]" />
 
       <Navbar showHomeButton={true} />
 
       <div className="relative z-10 pt-32 pb-16 px-4 max-w-7xl mx-auto">
-        {/* Page Header */}
         <motion.div
           className="text-center mb-10"
           initial={{ opacity: 0, y: 20 }}
@@ -748,7 +624,6 @@ const ModeratorPage: React.FC = () => {
           </p>
         </motion.div>
 
-        {/* Alert Container */}
         <div className="mb-6 max-w-6xl mx-auto">
           {alertMessage && (
             <Alert
@@ -762,147 +637,69 @@ const ModeratorPage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {/* Left Column - Key Management & Stats */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Key Management Card */}
             <Card
               initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
               <CardTitle className="mb-4 flex items-center">
-                <Key className="w-5 h-5 mr-2 text-white/70" />
-                Encryption Key
+                <Wallet className="w-5 h-5 mr-2 text-white/70" />
+                Wallet Connection
               </CardTitle>
               <div className="space-y-4">
-                {!keyPair ? (
+                {!laceWalletState.isConnected ? (
                   <>
+                    <div className="p-3 bg-yellow-500/[0.1] border border-yellow-500/[0.2] rounded-xl">
+                      <p className="text-sm text-yellow-400 flex items-center">
+                        <AlertTriangle className="w-4 h-4 mr-2" />
+                        Wallet connection required to vote on reports
+                      </p>
+                    </div>
                     <Button
-                      onClick={handleGenerateKeys}
-                      disabled={isGeneratingKeys}
+                      onClick={handleWalletConnect}
+                      disabled={walletLoading}
                       className="w-full"
                       size="md"
                     >
-                      {isGeneratingKeys ? "Generating..." : "Generate New Key Pair"}
+                      {walletLoading ? "Connecting..." : "Connect Midnight Lace Wallet"}
                     </Button>
-                    <div className="flex items-center">
-                      <div className="flex-1 h-px bg-white/20"></div>
-                      <span className="px-3 text-xs text-white/40">OR</span>
-                      <div className="flex-1 h-px bg-white/20"></div>
-                    </div>
-                    <div className="flex gap-2">
-                       <Button
-                        variant="outline"
-                        onClick={() => setShowImportDialog(true)}
-                        className="flex-1"
-                        size="md"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Import
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowManualInputDialog(true)}
-                        className="flex-1"
-                        size="md"
-                      >
-                        <Key className="w-4 h-4 mr-2" />
-                        Manual
-                      </Button>
-                    </div>
+                    {walletError && (
+                      <p className="text-sm text-red-400">{walletError}</p>
+                    )}
                   </>
                 ) : (
                   <>
-                    <div className="space-y-3">
-                      <div className="p-3 bg-white/[0.05] rounded-lg border border-white/[0.1]">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-white/50">
-                            Public Key
-                          </span>
-                          <button
-                            onClick={handleCopyPublicKey}
-                            className="text-xs text-[#0000fe] hover:text-[#0000cc] transition-colors duration-200 flex items-center"
-                          >
-                            {copiedKey === "public" ? (
-                              <>
-                                <ClipboardCheck className="w-3 h-3 mr-1 text-green-400" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Clipboard className="w-3 h-3 mr-1" />
-                                Copy
-                              </>
-                            )}
-                          </button>
-                        </div>
-                        <p className="text-xs font-mono text-white/80 break-all">
-                          {keyPair.publicKey.substring(0, 40)}...
+                    <div className="p-3 bg-green-500/[0.1] border border-green-500/[0.2] rounded-xl">
+                      <p className="text-sm text-green-400 flex items-center">
+                        <Check className="w-4 h-4 mr-2" />
+                        Wallet connected successfully
                         </p>
                       </div>
-
+                    {wallet && (
                       <div className="p-3 bg-white/[0.05] rounded-lg border border-white/[0.1]">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-white/50">
-                            Private Key
-                          </span>
-                          <button
-                            onClick={handleCopyPrivateKey}
-                            className="text-xs text-[#0000fe] hover:text-[#0000cc] transition-colors duration-200 flex items-center"
-                          >
-                            {copiedKey === "private" ? (
-                              <>
-                                <ClipboardCheck className="w-3 h-3 mr-1 text-green-400" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Clipboard className="w-3 h-3 mr-1" />
-                                Copy
-                              </>
-                            )}
-                          </button>
+                        <div className="text-xs font-medium text-white/50 mb-1">
+                          Address
                         </div>
                         <p className="text-xs font-mono text-white/80 break-all">
-                          {keyPair.privateKey.substring(0, 40)}...
+                          {wallet.address.slice(0, 16)}...{wallet.address.slice(-8)}
                         </p>
                       </div>
-                    </div>
-
-                    <div className="flex gap-2 pt-2 border-t border-white/[0.1]">
+                    )}
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1"
-                        onClick={() => setShowExportDialog(true)}
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        Export
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => {
-                          keyStorage.removeKeyPair("moderator");
-                          setKeyPair(null);
-                          setAlertMessage({
-                            type: "warning",
-                            message:
-                              "Keys cleared. You must re-import or generate new keys to decrypt reports.",
-                          });
-                        }}
+                      className="w-full"
+                      onClick={disconnectLaceWallet}
                       >
                         <X className="w-4 h-4 mr-1" />
-                        Clear
+                      Disconnect Wallet
                       </Button>
-                    </div>
                   </>
                 )}
               </div>
             </Card>
 
-            {/* Statistics Card */}
             <Card
               initial={{ opacity: 0, x: -50 }}
               animate={{ opacity: 1, x: 0 }}
@@ -941,7 +738,6 @@ const ModeratorPage: React.FC = () => {
             </Card>
           </div>
 
-          {/* Right Column - Reports List & Decryption */}
           <div className="lg:col-span-2">
             <Card
               className="h-full"
@@ -1002,7 +798,8 @@ const ModeratorPage: React.FC = () => {
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-2">
                               <Badge
                                 variant={
                                   report.status === "pending"
@@ -1017,6 +814,40 @@ const ModeratorPage: React.FC = () => {
                               <span className="text-xs text-white/50">
                                 {formatRelativeTime(new Date(report.timestamp))}
                               </span>
+                              </div>
+                              
+                              <div className="flex items-center space-x-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleVote(report.id, "up");
+                                  }}
+                                  className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs transition-all duration-200 ${
+                                    report.userVote === "up"
+                                      ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                                      : "bg-white/[0.05] text-white/60 hover:bg-green-500/10 hover:text-green-400"
+                                  }`}
+                                  disabled={!laceWalletState.isConnected}
+                                >
+                                  <ThumbsUp className="w-3 h-3" />
+                                  <span>{report.upvotes || 0}</span>
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleVote(report.id, "down");
+                                  }}
+                                  className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs transition-all duration-200 ${
+                                    report.userVote === "down"
+                                      ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                                      : "bg-white/[0.05] text-white/60 hover:bg-red-500/10 hover:text-red-400"
+                                  }`}
+                                  disabled={!laceWalletState.isConnected}
+                                >
+                                  <ThumbsDown className="w-3 h-3" />
+                                  <span>{report.downvotes || 0}</span>
+                                </button>
+                              </div>
                             </div>
 
                             {selectedReport?.id === report.id &&
@@ -1042,22 +873,79 @@ const ModeratorPage: React.FC = () => {
 
                                     {decryptedContent.attachment && (
                                       <div className="pt-2">
-                                        <h4 className="font-medium text-white/70 mb-1 flex items-center">
+                                        <h4 className="font-medium text-white/70 mb-2 flex items-center">
                                             <Paperclip className="w-4 h-4 mr-2" />
-                                            Attachment
+                                            Attachment: {decryptedContent.attachmentName || 'Unknown file'}
                                         </h4>
+                                        <div className="flex gap-2">
+                                          <button
+                                            onClick={() => {
+                                              setPreviewAttachment({
+                                                data: decryptedContent.attachment!,
+                                                name: decryptedContent.attachmentName
+                                              });
+                                              setShowPreview(true);
+                                            }}
+                                            className="inline-flex items-center px-3 py-2 bg-white/[0.05] rounded-lg text-sm text-white/80 hover:bg-white/[0.1] transition-colors"
+                                          >
+                                            <Eye className="w-4 h-4 mr-2" />
+                                            Preview
+                                          </button>
                                         <a
                                           href={decryptedContent.attachment}
-                                          download="attachment"
+                                            download={decryptedContent.attachmentName || "attachment"}
                                           className="inline-flex items-center px-3 py-2 bg-white/[0.05] rounded-lg text-sm text-white/80 hover:bg-white/[0.1] transition-colors"
                                         >
                                           <Download className="w-4 h-4 mr-2" />
-                                          Download File
+                                            Download
                                         </a>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {((report.upvoters && report.upvoters.length > 0) || (report.downvoters && report.downvoters.length > 0)) && (
+                                      <div className="pt-3 border-t border-white/[0.1] mt-4">
+                                        <h4 className="font-medium text-white/70 mb-2 flex items-center">
+                                          <Users className="w-4 h-4 mr-2" />
+                                          Voting Details
+                                        </h4>
+                                        
+                                        {report.upvoters && report.upvoters.length > 0 && (
+                                          <div className="mb-2">
+                                            <p className="text-sm text-green-400 mb-1 flex items-center">
+                                              <ThumbsUp className="w-3 h-3 mr-1" />
+                                              Upvoted by ({report.upvoters.length}):
+                                            </p>
+                                            <div className="space-y-1">
+                                              {report.upvoters.map((address, index) => (
+                                                <div key={index} className="text-xs font-mono text-white/60 bg-white/[0.03] px-2 py-1 rounded">
+                                                  {address.slice(0, 16)}...{address.slice(-8)}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                        
+                                        {report.downvoters && report.downvoters.length > 0 && (
+                                          <div className="mb-2">
+                                            <p className="text-sm text-red-400 mb-1 flex items-center">
+                                              <ThumbsDown className="w-3 h-3 mr-1" />
+                                              Downvoted by ({report.downvoters.length}):
+                                            </p>
+                                            <div className="space-y-1">
+                                              {report.downvoters.map((address, index) => (
+                                                <div key={index} className="text-xs font-mono text-white/60 bg-white/[0.03] px-2 py-1 rounded">
+                                                  {address.slice(0, 16)}...{address.slice(-8)}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     )}
 
                                     <div className="flex gap-2 pt-3 border-t border-white/[0.1] mt-4">
+                                      {wallet && wallet.address === report.submitterAddress && (
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -1069,6 +957,12 @@ const ModeratorPage: React.FC = () => {
                                         <Archive className="w-4 h-4 mr-1" />
                                         Archive Report
                                       </Button>
+                                      )}
+                                      {wallet && wallet.address !== report.submitterAddress && (
+                                        <div className="text-xs text-white/40 py-2">
+                                          Only the report submitter can archive this report
+                                        </div>
+                                      )}
                                     </div>
                                   </>
                                 )}
@@ -1098,238 +992,26 @@ const ModeratorPage: React.FC = () => {
         </div>
       </div>
 
-      {/* --- Dialogs (Modals) --- */}
-      
-      {/* Export Dialog */}
-      {showExportDialog && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle>Export Keys</CardTitle>
-              <CardDescription>
-                Save a secure copy. Protect with a strong password.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Input
-                type="password"
-                label="Password (optional)"
-                placeholder="Enter password to encrypt keys"
-                value={exportPassword}
-                onChange={(e) => {
-                  setExportPassword(e.target.value);
-                  setExportPasswordError("");
-                }}
-                error={exportPasswordError}
-                helperText={
-                  !exportPasswordError ? "Leave empty for unencrypted export (NOT RECOMMENDED)" : undefined
-                }
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    handleExportKeys();
-                  }
-                }}
-              />
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setShowExportDialog(false);
-                    setExportPassword("");
-                    setExportPasswordError("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                  onClick={handleExportKeys}
-                  disabled={!!exportPasswordError}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {showPreview && previewAttachment && (
+        <AttachmentPreview
+          attachment={previewAttachment.data}
+          attachmentName={previewAttachment.name}
+          onClose={() => {
+            setShowPreview(false);
+            setPreviewAttachment(null);
+          }}
+        />
       )}
 
-      {/* Manual Input Dialog */}
-      {showManualInputDialog && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle>Enter Keys Manually</CardTitle>
-              <CardDescription>
-                Paste your existing Public and Private keys below.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-white/80 mb-1.5">
-                  Public Key
-                </label>
-                <textarea
-                  value={manualPublicKey}
-                  onChange={(e) => setManualPublicKey(e.target.value)}
-                  placeholder="Paste your public key here"
-                  className="w-full px-4 py-3 bg-white/[0.02] border border-white/[0.08] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#0000fe] transition-colors resize-none"
-                  rows={3}
-                />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-white/80 mb-1.5">
-                  Private Key
-                </label>
-                <textarea
-                  value={manualPrivateKey}
-                  onChange={(e) => setManualPrivateKey(e.target.value)}
-                  placeholder="Paste your private key here"
-                  className="w-full px-4 py-3 bg-white/[0.02] border border-white/[0.08] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#0000fe] transition-colors resize-none"
-                  rows={3}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setShowManualInputDialog(false);
-                    setManualPublicKey("");
-                    setManualPrivateKey("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    if (manualPublicKey && manualPrivateKey) {
-                      const newKeyPair = {
-                        publicKey: manualPublicKey.trim(),
-                        privateKey: manualPrivateKey.trim(),
-                      };
-                      setKeyPair(newKeyPair);
-                      keyStorage.saveKeyPair(newKeyPair, "moderator");
-                      setShowManualInputDialog(false);
-                      setManualPublicKey("");
-                      setManualPrivateKey("");
-                      setAlertMessage({
-                        type: "success",
-                        message: "Keys added successfully!",
-                      });
-                    } else {
-                      setAlertMessage({
-                        type: "danger",
-                        message: "Both keys are required",
-                      });
-                    }
-                  }}
-                  disabled={!manualPublicKey || !manualPrivateKey}
-                >
-                  Save Keys
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+  );
+};
 
-      {/* Import Dialog */}
-      {showImportDialog && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle>Import Keys from File</CardTitle>
-              <CardDescription>
-                Select the previously exported JSON key file.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-white/80 mb-1">
-                  Select Key File
-                </label>
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleFileSelect}
-                  className="block w-full text-sm text-white/60
-                    file:mr-3 file:py-2 file:px-4
-                    file:rounded-lg file:border file:border-white/[0.2]
-                    file:text-sm file:font-medium
-                    file:bg-white/[0.05] file:text-white/80
-                    file:cursor-pointer
-                    hover:file:bg-white/[0.1]
-                    file:transition-all file:duration-200"
-                />
-                {importFileName && (
-                  <p className="mt-1 text-xs text-white/50">
-                    Selected: {importFileName}
-                  </p>
-                )}
-                {importError && !needsPassword && (
-                    <p className="mt-1 text-xs text-red-400">{importError}</p>
-                )}
-              </div>
-
-              {needsPassword && (
-                <div className="p-3 bg-yellow-500/[0.1] border border-yellow-500/[0.2] rounded-xl">
-                  <p className="text-sm text-yellow-400 flex items-center">
-                    <AlertTriangle className="w-4 h-4 mr-2" />
-                    Key file is password-protected.
-                  </p>
-                </div>
-              )}
-
-              <Input
-                type="password"
-                label="Password (if protected)"
-                placeholder="Enter password if keys are encrypted"
-                value={importPassword}
-                onChange={(e) => {
-                  setImportPassword(e.target.value);
-                  setImportError(null);
-                }}
-                error={importError || undefined}
-                required={needsPassword}
-              />
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setShowImportDialog(false);
-                    setImportPassword("");
-                    setImportFileContent(null);
-                    setImportFileName(null);
-                    setNeedsPassword(false);
-                    setImportError(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                  onClick={handleImportKeys}
-                  disabled={
-                    !importFileContent || (needsPassword && !importPassword) || !!importError
-                  }
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
+const ModeratorPage: React.FC = () => {
+  return (
+    <ToastProvider>
+      <ModeratorPageContent />
+    </ToastProvider>
   );
 };
 

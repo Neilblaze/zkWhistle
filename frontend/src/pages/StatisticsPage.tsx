@@ -465,35 +465,25 @@ export const StatisticsPage: React.FC = () => {
                 <BarChart3 className="w-5 h-5 mr-2 text-white/70" />
                 Report Status Distribution
               </CardTitle>
-              <div className="grid md:grid-cols-2 gap-8">
-                <div>
-                  <div className="space-y-4">
-                    <ProgressBar
-                      label="Reviewed/Verified"
-                      percentage={percentages.reviewed}
-                      color="green"
-                    />
-                    <ProgressBar
-                      label="Pending Review"
-                      percentage={percentages.pending}
-                      color="yellow"
-                    />
-                    <ProgressBar
-                      label="Archived"
-                      percentage={percentages.archived}
-                      color="gray"
-                    />
-                  </div>
-                  <p className="text-xs text-white/50 mt-4">
-                    Total Reports: {stats.totalReports.toLocaleString()}
-                  </p>
-                </div>
-                {/* Visualization Placeholder */}
-                <div className="h-40 bg-white/[0.02] rounded-xl border border-white/[0.08] flex items-center justify-center">
-                  <p className="text-white/40 text-sm">
-                    Pie Chart visualization coming soon...
-                  </p>
-                </div>
+              <div className="space-y-4">
+                <ProgressBar
+                  label="Reviewed/Verified"
+                  percentage={percentages.reviewed}
+                  color="green"
+                />
+                <ProgressBar
+                  label="Pending Review"
+                  percentage={percentages.pending}
+                  color="yellow"
+                />
+                <ProgressBar
+                  label="Archived"
+                  percentage={percentages.archived}
+                  color="gray"
+                />
+                <p className="text-xs text-white/50 mt-4">
+                  Total Reports: {stats.totalReports.toLocaleString()}
+                </p>
               </div>
             </Card>
           </motion.div>

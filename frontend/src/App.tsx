@@ -4,6 +4,7 @@ import "./App.css";
 import { Navbar } from "./components/Navbar";
 import { useWallet } from "./hooks/useWallet";
 import { transactionService } from "./services/transactionService";
+import { ToastProvider, useToast } from "./components/Toast";
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,7 +18,8 @@ import {
 
 type AppStep = "wallet" | "contract" | "action";
 
-function App() {
+function AppContent() {
+  const { showToast } = useToast();
   const [currentStep, setCurrentStep] = useState<AppStep>("wallet");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<
@@ -25,7 +27,6 @@ function App() {
   >("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Wallet integration
   const { 
     wallet, 
     isLoading: walletLoading, 
@@ -35,14 +36,12 @@ function App() {
     laceWalletState 
   } = useWallet();
 
-  // Form data
   const [reportTitle, setReportTitle] = useState("");
   const [reportContent, setReportContent] = useState("");
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentError, setAttachmentError] = useState("");
   const [txHash, setTxHash] = useState("");
 
-  // Initialize the app with welcome message
   useEffect(() => {
     console.log("🚀 zkWhistle Anonymous Reporting System");
     console.log("Welcome to the zero-knowledge anonymous reporting system.");
@@ -78,6 +77,13 @@ function App() {
     try {
       setErrorMessage("");
       await connectLaceWallet();
+      // Show success toast when wallet connects
+      showToast({
+        type: 'success',
+        title: 'Wallet Connected Successfully',
+        message: 'Your Midnight Lace wallet is connected and ready for transaction signing.',
+        duration: 4000
+      });
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Failed to connect wallet");
     }
@@ -95,8 +101,7 @@ function App() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Basic validation
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      const maxSize = 10 * 1024 * 1024;
       if (file.size > maxSize) {
         setAttachmentError("File size must be less than 10MB");
         setAttachment(null);
@@ -113,23 +118,21 @@ function App() {
       setSubmitStatus("idle");
       setErrorMessage("");
 
-      // Check if wallet is connected
       if (!laceWalletState.isConnected || !wallet) {
         throw new Error("Wallet not connected. Please connect your Midnight Lace wallet.");
       }
 
-      // Create the report transaction data
       const reportData = {
         title: reportTitle,
         content: reportContent,
         attachment: attachment ? await fileToBase64(attachment) : null,
+        attachmentName: attachment ? attachment.name : null,
         timestamp: new Date().toISOString(),
         submitterAddress: wallet.address,
       };
 
       console.log("🚀 Starting report submission process...");
       
-      // Use the transaction service to submit the report
       const txHash = await transactionService.submitReport(reportData);
       
       setTxHash(txHash);
@@ -137,7 +140,6 @@ function App() {
 
       console.log("✅ Report submitted successfully with transaction hash:", txHash);
 
-      // Reset form after delay
       setTimeout(() => {
         setCurrentStep("wallet");
         setReportTitle("");
@@ -155,7 +157,6 @@ function App() {
     }
   };
 
-  // Helper function to convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -180,13 +181,11 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#030303] text-white font-outfit relative overflow-hidden">
-      {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] via-transparent to-rose-500/[0.03]" />
 
       <Navbar showHomeButton={true} />
 
       <div className="relative z-10 p-8 max-w-4xl mx-auto mt-[100px]">
-        {/* Page Header */}
         <motion.div
           className="text-center mb-8"
           initial={{ opacity: 0, y: 20 }}
@@ -212,7 +211,6 @@ function App() {
           </motion.p>
         </motion.div>
 
-        {/* Progress Indicator */}
         <motion.div
           className="mb-8"
           initial={{ opacity: 0, y: 20 }}
@@ -346,7 +344,6 @@ function App() {
           </div>
         </motion.div>
 
-        {/* Main Content */}
         <motion.div
           className="space-y-6"
           initial={{ opacity: 0, y: 20 }}
@@ -354,7 +351,6 @@ function App() {
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           <div className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl p-8 shadow-[0_8px_32px_0_rgba(255,255,255,0.05)]">
-            {/* Step 1: Wallet Connection */}
             {currentStep === "wallet" && (
               <div className="space-y-6">
                 <div className="flex items-start space-x-3 p-4 bg-blue-500/[0.1] border border-blue-500/[0.2] rounded-xl">
@@ -370,7 +366,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Error Display */}
                 {(errorMessage || walletError) && (
                   <div className="flex items-start space-x-3 p-4 bg-red-500/[0.1] border border-red-500/[0.2] rounded-xl">
                     <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
@@ -385,34 +380,8 @@ function App() {
                   </div>
                 )}
 
-                {/* Wallet Status */}
                 {laceWalletState.isConnected && wallet ? (
                   <div className="space-y-4">
-                    <div className="flex items-start space-x-3 p-4 bg-green-500/[0.1] border border-green-500/[0.2] rounded-xl">
-                      <Check className="w-5 h-5 text-green-400 mt-0.5" />
-                      <div className="flex-1">
-                        <h3 className="text-green-400 font-medium mb-1">
-                          Wallet Connected Successfully
-                        </h3>
-                        <p className="text-green-300 text-sm mb-2">
-                          Your Midnight Lace wallet is connected and ready for transaction signing.
-                        </p>
-                        <div className="bg-white/[0.05] p-3 rounded-lg">
-                          <p className="text-white/80 text-sm">
-                            <span className="text-white/60">Address:</span>{" "}
-                            {wallet.address.slice(0, 16)}...{wallet.address.slice(-8)}
-                          </p>
-                          {laceWalletState.walletInfo && (
-                            <p className="text-white/80 text-sm mt-1">
-                              <span className="text-white/60">Public Key:</span>{" "}
-                              {laceWalletState.walletInfo.coinPublicKey.slice(0, 16)}...
-                              {laceWalletState.walletInfo.coinPublicKey.slice(-8)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    
                     <div className="flex justify-between">
                       <motion.button
                         onClick={disconnectLaceWallet}
@@ -437,7 +406,6 @@ function App() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* Loading State */}
                     {(walletLoading || laceWalletState.isConnecting) && (
                       <div className="flex items-center justify-center p-8">
                         <div className="flex items-center space-x-3">
@@ -449,7 +417,6 @@ function App() {
                       </div>
                     )}
 
-                    {/* Connect Button */}
                     {!walletLoading && !laceWalletState.isConnecting && (
                       <div className="text-center">
                         <motion.button
@@ -471,7 +438,6 @@ function App() {
               </div>
             )}
 
-            {/* Step 2: Report Details */}
             {currentStep === "contract" && (
               <div className="space-y-6">
                 <div>
@@ -558,7 +524,6 @@ function App() {
               </div>
             )}
 
-            {/* Step 3: Review & Submit */}
             {currentStep === "action" && (
               <div className="space-y-6">
                 {submitStatus === "success" ? (
@@ -648,7 +613,6 @@ function App() {
                       </div>
                     </div>
 
-                    {/* Wallet status reminder */}
                     {laceWalletState.isConnected && wallet && (
                       <div className="flex items-start space-x-3 p-3 bg-green-500/[0.05] border border-green-500/[0.1] rounded-lg">
                         <Check className="w-4 h-4 text-green-400 mt-0.5" />
@@ -661,7 +625,6 @@ function App() {
                       </div>
                     )}
 
-                    {/* Transaction signing info during submission */}
                     {isSubmitting && (
                       <div className="space-y-3">
                         <div className="flex items-start space-x-3 p-4 bg-blue-500/[0.1] border border-blue-500/[0.2] rounded-xl">
@@ -723,6 +686,14 @@ function App() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 }
 

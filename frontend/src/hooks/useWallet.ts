@@ -9,9 +9,28 @@ export const useWallet = () => {
   const [error, setError] = useState<string | null>(null);
   const [laceWalletState, setLaceWalletState] = useState(laceWalletService.currentState);
 
-  // Subscribe to Lace wallet state changes
   useEffect(() => {
-    const subscription = laceWalletService.walletState$.subscribe(setLaceWalletState);
+    const subscription = laceWalletService.walletState$.subscribe((laceState) => {
+      setLaceWalletState(laceState);
+      
+      if (laceState.isConnected && laceState.walletInfo) {
+        const laceWallet: WalletState = {
+          address: laceState.walletInfo.address,
+          balance: '0', // Balance will be fetched separately in a real implementation
+          seed: '', // Lace wallet doesn't expose seeds
+          type: 'lace',
+          laceInfo: {
+            coinPublicKey: laceState.walletInfo.coinPublicKey,
+            encryptionPublicKey: laceState.walletInfo.encryptionPublicKey,
+          },
+        };
+        setWallet(laceWallet);
+        console.log('🔄 Wallet state restored from Lace service');
+      } else if (!laceState.isConnected) {
+        setWallet(null);
+      }
+    });
+    
     return () => subscription.unsubscribe();
   }, []);
 
@@ -53,7 +72,6 @@ export const useWallet = () => {
     try {
       const laceInfo = await laceWalletService.connect();
       
-      // Create a wallet state object compatible with the existing interface
       const laceWallet: WalletState = {
         address: laceInfo.address,
         balance: '0', // Balance will be fetched separately in a real implementation
@@ -89,7 +107,6 @@ export const useWallet = () => {
   const clearWallet = useCallback(() => {
     setWallet(null);
     setError(null);
-    // Also disconnect Lace wallet if connected
     if (laceWalletState.isConnected) {
       void disconnectLaceWallet();
     }

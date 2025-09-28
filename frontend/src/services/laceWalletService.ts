@@ -1,6 +1,3 @@
-// Simplified types for Midnight Lace wallet integration
-// These will be replaced with actual @midnight-ntwrk types when available
-
 interface DAppConnectorAPI {
   apiVersion: string;
   isEnabled(): Promise<boolean>;
@@ -39,7 +36,6 @@ export interface LaceWalletState {
   error: string | null;
 }
 
-// Simple Observable implementation for wallet state
 class SimpleObservable<T> {
   private subscribers: Array<(value: T) => void> = [];
   private currentValue: T;
@@ -50,7 +46,7 @@ class SimpleObservable<T> {
   
   subscribe(callback: (value: T) => void): { unsubscribe: () => void } {
     this.subscribers.push(callback);
-    callback(this.currentValue); // Emit current value immediately
+    callback(this.currentValue);
     
     return {
       unsubscribe: () => {
@@ -80,6 +76,8 @@ class SimpleObservable<T> {
  * Service for connecting to and managing the Midnight Lace wallet extension
  */
 export class LaceWalletService {
+  private static readonly STORAGE_KEY = 'zkwhistle_wallet_connection';
+  
   private walletStateSubject = new SimpleObservable<LaceWalletState>({
     isConnected: false,
     walletInfo: null,
@@ -91,7 +89,6 @@ export class LaceWalletService {
   private serviceUris: ServiceUriConfig | null = null;
 
   constructor() {
-    // Check if wallet is already connected on initialization
     this.checkExistingConnection();
   }
 
@@ -103,17 +100,84 @@ export class LaceWalletService {
     return this.walletStateSubject.getValue();
   }
 
+  private saveConnectionState(walletInfo: LaceWalletInfo): void {
+    try {
+      const connectionData = {
+        isConnected: true,
+        walletInfo,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(LaceWalletService.STORAGE_KEY, JSON.stringify(connectionData));
+      console.log('💾 Wallet connection state saved');
+    } catch (error) {
+      console.warn('Failed to save wallet connection state:', error);
+    }
+  }
+
+  private loadConnectionState(): { walletInfo: LaceWalletInfo; timestamp: number } | null {
+    try {
+      const stored = localStorage.getItem(LaceWalletService.STORAGE_KEY);
+      if (!stored) return null;
+      
+      const data = JSON.parse(stored);
+      const maxAge = 24 * 60 * 60 * 1000;
+      if (Date.now() - data.timestamp > maxAge) {
+        this.clearConnectionState();
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      console.warn('Failed to load wallet connection state:', error);
+      return null;
+    }
+  }
+
+  private clearConnectionState(): void {
+    try {
+      localStorage.removeItem(LaceWalletService.STORAGE_KEY);
+      console.log('🗑️ Wallet connection state cleared');
+    } catch (error) {
+      console.warn('Failed to clear wallet connection state:', error);
+    }
+  }
+
   private async checkExistingConnection(): Promise<void> {
     try {
+      const storedConnection = this.loadConnectionState();
+      
       const connectorAPI = await this.getConnectorAPI();
       const isEnabled = await connectorAPI.isEnabled();
       
       if (isEnabled) {
-        await this.connectToWallet();
+        console.log('🔄 Attempting to restore wallet connection...');
+        const { wallet, uris } = await this.connectToWallet();
+        const walletState = await wallet.state();
+
+        const walletInfo: LaceWalletInfo = {
+          coinPublicKey: walletState.coinPublicKey,
+          encryptionPublicKey: walletState.encryptionPublicKey,
+          address: walletState.address,
+        };
+
+        this.connectedWallet = wallet;
+        this.serviceUris = uris;
+
+        this.updateState({
+          isConnected: true,
+          walletInfo,
+          isConnecting: false,
+          error: null,
+        });
+
+        this.saveConnectionState(walletInfo);
+        console.log('✅ Wallet connection restored successfully');
+      } else if (storedConnection) {
+        this.clearConnectionState();
       }
     } catch (error) {
-      // Silent fail for checking existing connection
       console.debug('No existing wallet connection found:', error);
+      this.clearConnectionState();
     }
   }
 
@@ -143,6 +207,8 @@ export class LaceWalletService {
         error: null,
       });
 
+      this.saveConnectionState(walletInfo);
+
       return walletInfo;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to connect to wallet';
@@ -164,6 +230,8 @@ export class LaceWalletService {
   async disconnect(): Promise<void> {
     this.connectedWallet = null;
     this.serviceUris = null;
+    
+    this.clearConnectionState();
 
     this.updateState({
       isConnected: false,
@@ -171,6 +239,8 @@ export class LaceWalletService {
       isConnecting: false,
       error: null,
     });
+    
+    console.log('🔌 Wallet disconnected');
   }
 
   /**
@@ -200,14 +270,12 @@ export class LaceWalletService {
       const maxAttempts = 50; // 5 seconds with 100ms intervals
       
       const checkForWallet = () => {
-        // Debug: Check what's available in window.midnight
         console.log('🔍 Debugging Midnight Lace Detection:');
         console.log('window.midnight:', (window as any).midnight);
         
         if ((window as any).midnight) {
           console.log('Available properties:', Object.keys((window as any).midnight));
           
-          // Check for different possible API locations
           const possiblePaths = [
             (window as any).midnight?.mnLace,
             (window as any).midnight?.lace,
@@ -226,7 +294,6 @@ export class LaceWalletService {
           });
         }
         
-        // Try multiple possible API paths for preview versions
         const connectorAPI = (window as any).midnight?.mnLace || 
                            (window as any).midnight?.lace ||
                            (window as any).midnight?.wallet;
@@ -235,7 +302,6 @@ export class LaceWalletService {
           console.log('✅ Found connector API:', connectorAPI);
           console.log('API Version:', connectorAPI.apiVersion);
           
-          // More lenient version check for preview versions
           if (!connectorAPI.apiVersion || 
               connectorAPI.apiVersion.startsWith(COMPATIBLE_CONNECTOR_API_VERSION) ||
               connectorAPI.apiVersion.includes('preview') ||
@@ -270,7 +336,6 @@ export class LaceWalletService {
     
     if (!isEnabled) {
       console.log('🚀 Wallet not enabled, attempting to enable...');
-      // For preview versions, we try to enable directly instead of throwing an error
       try {
         const walletConnectorAPI = await connectorAPI.enable();
         if (!walletConnectorAPI) {
@@ -306,5 +371,4 @@ export class LaceWalletService {
   }
 }
 
-// Global instance
 export const laceWalletService = new LaceWalletService();

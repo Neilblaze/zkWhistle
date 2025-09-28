@@ -1,5 +1,3 @@
-// Type declarations for Midnight Network DApp Connector API
-
 declare global {
   interface Window {
     midnight?: {
