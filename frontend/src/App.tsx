@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import "./App.css";
 import { Navbar } from "./components/Navbar";
+import { useWallet } from "./hooks/useWallet";
+import { transactionService } from "./services/transactionService";
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,6 +11,8 @@ import {
   FileText,
   Shield,
   Lock,
+  Wallet,
+  AlertCircle,
 } from "lucide-react";
 
 type AppStep = "wallet" | "contract" | "action";
@@ -21,9 +25,17 @@ function App() {
   >("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Wallet integration
+  const { 
+    wallet, 
+    isLoading: walletLoading, 
+    error: walletError, 
+    connectLaceWallet,
+    disconnectLaceWallet,
+    laceWalletState 
+  } = useWallet();
+
   // Form data
-  const [publicKey, setPublicKey] = useState("");
-  const [publicKeyError, setPublicKeyError] = useState("");
   const [reportTitle, setReportTitle] = useState("");
   const [reportContent, setReportContent] = useState("");
   const [attachment, setAttachment] = useState<File | null>(null);
@@ -41,11 +53,10 @@ function App() {
 
   const handleNextStep = () => {
     if (currentStep === "wallet") {
-      if (!publicKey) {
-        setPublicKeyError("Public key is required");
+      if (!laceWalletState.isConnected) {
+        setErrorMessage("Please connect your Midnight Lace wallet to continue");
         return;
       }
-      if (publicKeyError) return;
     }
 
     if (currentStep === "contract") {
@@ -61,6 +72,15 @@ function App() {
       setCurrentStep("action");
     }
     setErrorMessage("");
+  };
+
+  const handleWalletConnect = async () => {
+    try {
+      setErrorMessage("");
+      await connectLaceWallet();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to connect wallet");
+    }
   };
 
   const handlePreviousStep = () => {
@@ -93,22 +113,33 @@ function App() {
       setSubmitStatus("idle");
       setErrorMessage("");
 
-      // Simulate submission process
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Check if wallet is connected
+      if (!laceWalletState.isConnected || !wallet) {
+        throw new Error("Wallet not connected. Please connect your Midnight Lace wallet.");
+      }
 
-      // Mock transaction hash
-      const mockTxHash =
-        "0x" +
-        Array.from({ length: 64 }, () =>
-          Math.floor(Math.random() * 16).toString(16)
-        ).join("");
-      setTxHash(mockTxHash);
+      // Create the report transaction data
+      const reportData = {
+        title: reportTitle,
+        content: reportContent,
+        attachment: attachment ? await fileToBase64(attachment) : null,
+        timestamp: new Date().toISOString(),
+        submitterAddress: wallet.address,
+      };
+
+      console.log("🚀 Starting report submission process...");
+      
+      // Use the transaction service to submit the report
+      const txHash = await transactionService.submitReport(reportData);
+      
+      setTxHash(txHash);
       setSubmitStatus("success");
+
+      console.log("✅ Report submitted successfully with transaction hash:", txHash);
 
       // Reset form after delay
       setTimeout(() => {
         setCurrentStep("wallet");
-        setPublicKey("");
         setReportTitle("");
         setReportContent("");
         setAttachment(null);
@@ -117,16 +148,27 @@ function App() {
     } catch (error: unknown) {
       console.error("Submission error:", error);
       setSubmitStatus("error");
-      setErrorMessage("Failed to submit report. Please try again.");
+      const errorMsg = error instanceof Error ? error.message : "Failed to submit report. Please try again.";
+      setErrorMessage(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Helper function to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const getStepTitle = () => {
     switch (currentStep) {
       case "wallet":
-        return "Public Key Setup";
+        return "Wallet Connection";
       case "contract":
         return "Report Details";
       case "action":
@@ -186,7 +228,7 @@ function App() {
               className={`flex flex-col items-center transition-all duration-300 ${
                 currentStep === "wallet"
                   ? "text-[#0000fe]"
-                  : publicKey
+                  : laceWalletState.isConnected
                   ? "text-green-400"
                   : "text-white/40"
               }`}
@@ -195,17 +237,17 @@ function App() {
                 className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
                   currentStep === "wallet"
                     ? "bg-[#0000fe] shadow-lg"
-                    : publicKey
+                    : laceWalletState.isConnected
                     ? "bg-green-400"
                     : "bg-white/[0.15]"
                 } ${
-                  currentStep === "wallet" || publicKey
+                  currentStep === "wallet" || laceWalletState.isConnected
                     ? "text-white"
                     : "text-white/60"
                 }`}
                 whileHover={{ scale: 1.1 }}
               >
-                {publicKey && currentStep !== "wallet" ? (
+                {laceWalletState.isConnected && currentStep !== "wallet" ? (
                   <Check className="w-5 h-5" />
                 ) : (
                   "1"
@@ -215,18 +257,18 @@ function App() {
                 className={`mt-2 text-xs font-medium ${
                   currentStep === "wallet"
                     ? "text-[#0000fe]"
-                    : !currentStep && !publicKey
-                    ? "text-white/40"
-                    : "text-white/60"
+                    : laceWalletState.isConnected
+                    ? "text-white/60"
+                    : "text-white/40"
                 }`}
               >
-                Public Key
+                Wallet Connection
               </span>
             </div>
 
             <div
               className={`flex-1 h-0.5 mx-4 transition-all duration-300 ${
-                publicKey ? "bg-green-400" : "bg-white/20"
+                laceWalletState.isConnected ? "bg-green-400" : "bg-white/20"
               }`}
             />
 
@@ -312,92 +354,120 @@ function App() {
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           <div className="bg-white/[0.02] backdrop-blur-sm border border-white/[0.08] rounded-2xl p-8 shadow-[0_8px_32px_0_rgba(255,255,255,0.05)]">
-            {/* Step 1: Public Key */}
+            {/* Step 1: Wallet Connection */}
             {currentStep === "wallet" && (
               <div className="space-y-6">
                 <div className="flex items-start space-x-3 p-4 bg-blue-500/[0.1] border border-blue-500/[0.2] rounded-xl">
-                  <Shield className="w-5 h-5 text-blue-400 mt-0.5" />
+                  <Wallet className="w-5 h-5 text-blue-400 mt-0.5" />
                   <div>
                     <h3 className="text-white font-medium mb-1">
-                      Encryption Key Required
+                      Connect Your Midnight Lace Wallet
                     </h3>
                     <p className="text-white/60 text-sm">
-                      Enter or import the moderator's public key to encrypt your
-                      report. Only they will be able to decrypt it.
+                      Connect your Midnight Lace wallet to authenticate and submit
+                      your anonymous report securely on the blockchain.
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">
-                      Moderator Public Key
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Enter or paste the public key provided by the moderator"
-                      value={publicKey}
-                      onChange={(e) => {
-                        setPublicKey(e.target.value);
-                        setPublicKeyError("");
-                      }}
-                      className="w-full px-4 py-3 bg-white/[0.02] border border-white/[0.08] rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#0000fe] transition-colors"
-                    />
-                    {publicKeyError && (
-                      <p className="mt-2 text-sm text-red-400">
-                        {publicKeyError}
+                {/* Error Display */}
+                {(errorMessage || walletError) && (
+                  <div className="flex items-start space-x-3 p-4 bg-red-500/[0.1] border border-red-500/[0.2] rounded-xl">
+                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+                    <div>
+                      <h3 className="text-red-400 font-medium mb-1">
+                        Connection Error
+                      </h3>
+                      <p className="text-red-300 text-sm">
+                        {errorMessage || walletError}
                       </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Wallet Status */}
+                {laceWalletState.isConnected && wallet ? (
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3 p-4 bg-green-500/[0.1] border border-green-500/[0.2] rounded-xl">
+                      <Check className="w-5 h-5 text-green-400 mt-0.5" />
+                      <div className="flex-1">
+                        <h3 className="text-green-400 font-medium mb-1">
+                          Wallet Connected Successfully
+                        </h3>
+                        <p className="text-green-300 text-sm mb-2">
+                          Your Midnight Lace wallet is connected and ready for transaction signing.
+                        </p>
+                        <div className="bg-white/[0.05] p-3 rounded-lg">
+                          <p className="text-white/80 text-sm">
+                            <span className="text-white/60">Address:</span>{" "}
+                            {wallet.address.slice(0, 16)}...{wallet.address.slice(-8)}
+                          </p>
+                          {laceWalletState.walletInfo && (
+                            <p className="text-white/80 text-sm mt-1">
+                              <span className="text-white/60">Public Key:</span>{" "}
+                              {laceWalletState.walletInfo.coinPublicKey.slice(0, 16)}...
+                              {laceWalletState.walletInfo.coinPublicKey.slice(-8)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <motion.button
+                        onClick={disconnectLaceWallet}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-white/[0.08] text-white/80 text-sm font-medium rounded-xl hover:bg-white/[0.12] transition-all duration-200"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Wallet className="w-4 h-4" />
+                        Disconnect Wallet
+                      </motion.button>
+                      
+                      <motion.button
+                        onClick={handleNextStep}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#0000fe] text-white text-sm font-medium rounded-xl hover:bg-[#0000cc] transition-all duration-200"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        Next Step
+                        <ArrowRight className="w-4 h-4" />
+                      </motion.button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Loading State */}
+                    {(walletLoading || laceWalletState.isConnecting) && (
+                      <div className="flex items-center justify-center p-8">
+                        <div className="flex items-center space-x-3">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
+                          <p className="text-blue-300">
+                            Connecting to Midnight Lace wallet...
+                          </p>
+                        </div>
+                      </div>
                     )}
-                    <p className="mt-1 text-xs text-white/40">
-                      This ensures only the intended recipient can read your
-                      report
-                    </p>
-                  </div>
 
-                  <div className="flex items-center">
-                    <div className="flex-1 h-px bg-white/20"></div>
-                    <span className="px-3 text-sm text-white/40">OR</span>
-                    <div className="flex-1 h-px bg-white/20"></div>
+                    {/* Connect Button */}
+                    {!walletLoading && !laceWalletState.isConnecting && (
+                      <div className="text-center">
+                        <motion.button
+                          onClick={handleWalletConnect}
+                          className="inline-flex items-center gap-3 px-8 py-4 bg-[#0000fe] text-white text-lg font-medium rounded-xl hover:bg-[#0000cc] transition-all duration-200"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Wallet className="w-6 h-6" />
+                          Connect Midnight Lace Wallet
+                        </motion.button>
+                        <p className="mt-3 text-white/60 text-sm">
+                          Make sure you have the Midnight Lace wallet extension installed
+                        </p>
+                      </div>
+                    )}
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">
-                      Import from File
-                    </label>
-                    <input
-                      type="file"
-                      accept=".txt,.json,.key"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            const text = event.target?.result as string;
-                            setPublicKey(text.trim());
-                          };
-                          reader.readAsText(file);
-                        }
-                      }}
-                      className="block w-full text-sm text-white/60 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-white/[0.1] file:text-white hover:file:bg-white/[0.15] transition-colors duration-200"
-                    />
-                    <p className="mt-1 text-xs text-white/40">
-                      Accepts .txt, .json, or .key files
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <motion.button
-                    onClick={handleNextStep}
-                    disabled={!publicKey || !!publicKeyError}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#0000fe] text-white text-sm font-medium rounded-xl hover:bg-[#0000cc] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    Next Step
-                    <ArrowRight className="w-4 h-4" />
-                  </motion.button>
-                </div>
+                )}
               </div>
             )}
 
@@ -567,16 +637,46 @@ function App() {
                         <span>Your report will be encrypted end-to-end</span>
                       </div>
                       <div className="flex items-center space-x-3 text-sm text-white/60">
-                        <Shield className="w-4 h-4 text-green-400" />
+                        <Shield className="w-4 h-4 text-blue-400" />
                         <span>Zero-knowledge proof ensures your anonymity</span>
                       </div>
                       <div className="flex items-center space-x-3 text-sm text-white/60">
-                        <Check className="w-4 h-4 text-green-400" />
+                        <Wallet className="w-4 h-4 text-purple-400" />
                         <span>
-                          Report will be anchored on-chain with mock transaction
+                          Transaction will be signed with your Midnight Lace wallet
                         </span>
                       </div>
                     </div>
+
+                    {/* Wallet status reminder */}
+                    {laceWalletState.isConnected && wallet && (
+                      <div className="flex items-start space-x-3 p-3 bg-green-500/[0.05] border border-green-500/[0.1] rounded-lg">
+                        <Check className="w-4 h-4 text-green-400 mt-0.5" />
+                        <div>
+                          <p className="text-green-400 text-sm font-medium">Wallet Connected</p>
+                          <p className="text-green-300 text-xs">
+                            {wallet.address.slice(0, 16)}...{wallet.address.slice(-8)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Transaction signing info during submission */}
+                    {isSubmitting && (
+                      <div className="space-y-3">
+                        <div className="flex items-start space-x-3 p-4 bg-blue-500/[0.1] border border-blue-500/[0.2] rounded-xl">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400 mt-0.5"></div>
+                          <div>
+                            <h3 className="text-blue-400 font-medium mb-1">
+                              Processing Transaction
+                            </h3>
+                            <p className="text-blue-300 text-sm">
+                              Please sign the transaction in your Midnight Lace wallet to submit your report...
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {errorMessage && (
                       <div className="flex items-start space-x-3 p-4 bg-red-500/[0.1] border border-red-500/[0.2] rounded-xl">
@@ -605,7 +705,14 @@ function App() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                       >
-                        {isSubmitting ? "Submitting..." : "Submit Report"}
+                        {isSubmitting ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Signing Transaction...
+                          </>
+                        ) : (
+                          "Submit Report & Sign Transaction"
+                        )}
                       </motion.button>
                     </div>
                   </>
